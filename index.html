@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tick Tock English · Created by Eduardo Montes</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3efe6;--card:#fffdf8;--fg:#1f2a37;--mut:#6b7280;--line:#e5dfd0;--face:#fffef9;--ink:#1f2a37;--ok:#15803d;--okbg:#dcfce7;--ko:#b91c1c;--kobg:#fee2e2;--acc:#1d4ed8;--sec:#e11d48}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111827;--card:#1b2433;--fg:#f3f4f6;--mut:#9ca3af;--line:#2d3a4f;--face:#243044;--ink:#f3f4f6;--ok:#4ade80;--okbg:#14352366;--ko:#f87171;--kobg:#45151566;--acc:#60a5fa;--sec:#fb7185}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--fg);font-family:'Nunito',system-ui,sans-serif;min-height:100vh}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px}
+.mut{color:var(--mut)}
+.btn{border-radius:12px;padding:.6rem 1rem;font-weight:700;border:1px solid var(--line);background:var(--card);transition:transform .1s}
+.btn:active{transform:scale(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+.opt{width:100%;text-align:left;border-radius:12px;padding:.7rem 1rem;border:2px solid var(--line);background:var(--card);font-weight:600}
+.opt:hover:not(:disabled){border-color:var(--acc)}
+.ok{border-color:var(--ok)!important;background:var(--okbg)!important}.ko{border-color:var(--ko)!important;background:var(--kobg)!important}
+.hand{transition:transform 1.3s cubic-bezier(.3,1.2,.4,1);transform-origin:100px 100px}
+.fall{position:fixed;top:-20px;width:10px;height:14px;animation:fall 3.2s linear forwards;z-index:50;pointer-events:none}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+body::after{content:"Created by Eduardo Montes";position:fixed;right:12px;bottom:calc(8px + env(safe-area-inset-bottom,0px));font-size:12px;font-weight:700;color:#9ca3af;opacity:.8;pointer-events:none;z-index:40}
+.flash{animation:fl .6s}@keyframes fl{50%{background:#fde68a;transform:scale(1.03)}}
+.mon{transition:left .7s ease-in-out,top .7s ease-in-out}
+@media (prefers-reduced-motion:reduce){.hand{transition:none}.fall{display:none}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useEffect,useRef}=React, html=htm.bind(React.createElement);
+const LEVELS=[
+ {id:'easy',name:'Fácil',en:'Easy',mins:[0,30],base:10,c:'#16a34a',mix:[0,0,0,0,0,30,30,30,30,30],d:"Solo en punto y media · opciones muy distintas · 10 pts"},
+ {id:'medium',name:'Medio',en:'Medium',mins:[0,15,30],base:15,c:'#d97706',mix:[0,30,15,15,15,15,15,15,15,15],d:"Casi todo «a quarter past»; en punto y media salen como mucho 1 vez de 10 · 15 pts"},
+ {id:'hard',name:'Difícil',en:'Hard',mins:[0,15,30,45],base:20,c:'#dc2626',mix:[0,30,15,15,15,15,45,45,45,45],d:"Casi todo «quarter past» y «quarter to»; en punto y media, 1 de 10 como mucho · 20 pts"},
+ {id:'extreme',name:'Extreme',en:'Extreme',mins:[0,5,10,15,20,25,30,35,40,45,50,55],base:30,c:'#7c3aed',mix:null,d:"Cada 5 minutos con past y to; en punto y media, 1 de 10 como mucho · 30 pts"},
+ {id:'boss',name:'Boss',en:'Boss',mins:[0,5,10,15,20,25,30,35,40,45,50,55],base:40,c:'#be123c',mix:null,d:"Cuenta atrás, 3 vidas y un monstruo que cambia las respuestas de sitio · 40 pts + bonus de tiempo"}];
+const H=['','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
+const M={5:'five',10:'ten',20:'twenty',25:'twenty-five'};
+const phrase=(h,m)=>{const nx=H[h%12+1];
+ if(m===0)return `${H[h]} o'clock`;if(m===30)return `half past ${H[h]}`;
+ if(m===15)return `a quarter past ${H[h]}`;if(m===45)return `a quarter to ${nx}`;
+ return m<30?`${M[m]} past ${H[h]}`:`${M[60-m]} to ${nx}`;};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
+const pad=n=>String(n).padStart(2,'0');
+const h24=q=>(q.h%12)+(q.pm?12:0);
+const nh=x=>((x+11)%12)+1;
+function makeQ(lv,prev,fm,used=new Set(),soft=new Set()){
+ const mins=lv.mins,L=LEVELS.indexOf(lv),m=fm!=null?fm:pick(mins),dm=L>=1?mins.filter(x=>x!==0&&x!==30):mins;let h,tr=0;
+ do{h=1+Math.floor(Math.random()*12);tr++;}while(((prev&&prev.h===h&&prev.m===m)||used.has(h+':'+m)||(tr<150&&soft.has(h+':'+m)))&&tr<400);
+ const q={h,m,pm:Math.random()<.5},right=phrase(h,m),set=new Set([right]),others=dm.filter(x=>x!==m),c=[];
+ if(L===0){for(let k=0;k<14;k++){const hh=1+Math.floor(Math.random()*12),d=Math.abs(hh-h);if(d>=3&&d<=9)c.push([hh,pick(mins)]);}}
+ else{
+  others.forEach(x=>c.push([h,x]));
+  [-1,1].forEach(d=>{c.push([nh(h+d),m]);if(L>1)others.forEach(x=>c.push([nh(h+d),x]));});
+  if(L>1){const mr=(60-m)%60;c.push([h,mr],[nh(h+1),mr],[nh(h-1),mr]);}
+  if(L>=3)[-5,5].forEach(d=>c.push([h,(m+d+60)%60]));
+  if(L===1)c.push([1+Math.floor(Math.random()*12),pick(mins)]);}
+ shuffle(c).forEach(([hh,mm])=>{if(set.size<4&&dm.includes(mm))set.add(phrase(hh,mm));});
+ while(set.size<4)set.add(phrase(1+Math.floor(Math.random()*12),pick(dm)));
+ q.opts=shuffle([...set]);return q;}
+const makeSet=(lv,recent)=>{const soft=new Set(recent||[]);
+ const ms=shuffle(lv.mix?[...lv.mix]:[0,30,...shuffle([5,10,15,20,25,35,40,45,50,55]).slice(0,8)]),a=[];
+ const used=new Set();for(let i=0;i<10;i++){const q=makeQ(lv,a[i-1],ms[i],used,soft);used.add(q.h+':'+q.m);a.push(q);}return a;};
+const norm=s=>s.toLowerCase().replace(/[’']/g,'').replace(/[-.,!?]/g,' ').replace(/\s+/g,' ').trim()
+ .replace(/^(its|it is) /,'').replace(/^a quarter/,'quarter').replace(/\boclock\b/,'oclock');
+const check=(inp,q)=>{const c=norm(phrase(q.h,q.m)),x=norm(inp);return x===c||(q.m===0&&x===c.replace(' oclock',''));};
+const KEY='ticktock-en-v1';
+const load=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{passed:{},best:{}};}catch(e){return{passed:{},best:{}};}};
+
+function Clock({q,spin}){
+ const [a,setA]=useState({h:0,m:0});
+ useEffect(()=>{setA(p=>{
+  const th=(q.h%12)*30+q.m*.5,tm=q.m*6;
+  const adv=(cur,t)=>cur+((t-(cur%360))+360)%360+(spin?360:0);
+  return{h:adv(p.h,th),m:adv(p.m,tm)};});},[q,spin]);
+ const ticks=[];for(let i=0;i<60;i++){const big=i%5===0,r=i*6*Math.PI/180;
+  const r1=big?82:86,x1=100+r1*Math.sin(r),y1=100-r1*Math.cos(r),x2=100+92*Math.sin(r),y2=100-92*Math.cos(r);
+  ticks.push(html`<line key=${i} x1=${x1} y1=${y1} x2=${x2} y2=${y2} stroke="var(--ink)" strokeWidth=${big?2:.8} strokeLinecap="round"/>`);}
+ const nums=[];for(let n=1;n<=12;n++){const r=n*30*Math.PI/180;
+  nums.push(html`<text key=${n} x=${100+68*Math.sin(r)} y=${100-68*Math.cos(r)+5} textAnchor="middle" fontSize="15" fontWeight="800" fill="var(--ink)">${n}</text>`);}
+ return html`<svg viewBox="0 0 200 200" className="w-full max-w-[300px] mx-auto" role="img" aria-label="Reloj analógico">
+  <circle cx="100" cy="100" r="97" fill="var(--face)" stroke="var(--ink)" strokeWidth="4"/>
+  ${ticks}${nums}
+  <g className="hand" style=${{transform:`rotate(${a.h}deg)`}}><line x1="100" y1="108" x2="100" y2="58" stroke="var(--ink)" strokeWidth="6" strokeLinecap="round"/></g>
+  <g className="hand" style=${{transform:`rotate(${a.m}deg)`}}><line x1="100" y1="112" x2="100" y2="28" stroke="var(--acc)" strokeWidth="3.5" strokeLinecap="round"/></g>
+  <circle cx="100" cy="100" r="5" fill="var(--sec)"/></svg>`;}
+
+function Confetti(){const c=['#e11d48','#1d4ed8','#f59e0b','#16a34a','#9333ea'];
+ return html`<div>${Array.from({length:50},(_,i)=>html`<span key=${i} className="fall" style=${{left:Math.random()*100+'%',background:c[i%5],animationDelay:Math.random()*1.2+'s'}}/>`)}</div>`;}
+
+function Mini({h,m}){const P=(a,l)=>[100+l*Math.sin(a*Math.PI/180),100-l*Math.cos(a*Math.PI/180)],[hx,hy]=P((h%12)*30+m*.5,50),[mx,my]=P(m*6,76);
+ return html`<svg viewBox="0 0 200 200" width="64" height="64" aria-hidden="true" style=${{flex:'none'}}><circle cx="100" cy="100" r="95" fill="var(--face)" stroke="var(--ink)" strokeWidth="6"/>${[0,1,2,3,4,5,6,7,8,9,10,11].map(i=>{const[x1,y1]=P(i*30,80),[x2,y2]=P(i*30,92);return html`<line key=${i} x1=${x1} y1=${y1} x2=${x2} y2=${y2} stroke="var(--ink)" strokeWidth="5"/>`;})}<line x1="100" y1="100" x2=${hx} y2=${hy} stroke="var(--ink)" strokeWidth="9" strokeLinecap="round"/><line x1="100" y1="100" x2=${mx} y2=${my} stroke="var(--acc)" strokeWidth="6" strokeLinecap="round"/></svg>`;}
+const tip=m=>m===0?"Minuto 0 → o'clock":m===30?"Minuto 30 → half past":m===15?"Minuto 15 → a quarter past":m===45?"Minuto 45 → a quarter to + hora siguiente":m<30?"Minutos 5 a 25 → past + la hora actual":"Minutos 35 a 55 → to + la hora siguiente";
+const MD=(ok,h,pass)=>pass?(ok>=9&&h===0?3:ok>=8?2:1):0;
+function Medal({ok,h,pass}){const m=MD(ok,h,pass);if(!m)return null;
+ return html`<div className="mb-4"><div className="text-5xl" aria-hidden="true">${['','🥉','🥈','🥇'][m]}</div><div className="font-extrabold">Medalla de ${['','bronce','plata','oro'][m]}</div><div className="mut text-sm">${m===3?'¡Máximo logro!':m===2?'Para el oro: 9 aciertos o más y sin pistas.':'Para la plata: 8 aciertos o más.'}</div></div>`;}
+const GR=[[3,0,'Minuto 0 → en punto'],[3,30,'Minuto 30 → y media'],[3,15,'Minuto 15 → y cuarto'],[3,45,'Minuto 45 → menos cuarto (¡hora siguiente!)'],[3,10,'Del 5 al 25 → past (y…)'],[3,25,'Del 5 al 25 → past (y…)'],[3,35,'Del 35 al 55 → to (menos…) ¡hora siguiente!'],[3,55,'Del 35 al 55 → to (menos…) ¡hora siguiente!']];
+function Guide({onClose}){
+ useEffect(()=>{const f=e=>{if(e.key==='Escape')onClose();};window.addEventListener('keydown',f);return()=>window.removeEventListener('keydown',f);},[]);
+ return html`<div className="fixed inset-0 z-50 flex items-center justify-center p-3" style=${{background:'rgba(0,0,0,.55)'}} onClick=${onClose}>
+  <div className="card p-4 w-full max-w-xl overflow-y-auto" style=${{maxHeight:'90vh'}} onClick=${e=>e.stopPropagation()} role="dialog" aria-label="Repaso de horas">
+   <div className="flex items-center justify-between mb-2"><h2 className="text-xl font-extrabold">📖 Repaso rápido</h2><button className="btn" onClick=${onClose}>Cerrar ✕</button></div>
+   <p className="mut text-sm mb-3">La manecilla larga marca los minutos: cada número vale 5 (el 3 = 15 min, el 6 = 30 min, el 9 = 45 min).</p>
+   <div className="grid gap-2">${GR.map(([h,m,note],k)=>html`<div key=${k} className="flex items-center gap-3 p-2 rounded-xl" style=${{border:'1px solid var(--line)'}}><${Mini} h=${h} m=${m}/><div><div className="font-extrabold">It's ${phrase(h,m)}</div><div className="mut text-sm">${h}:${pad(m)} · ${note}</div></div></div>`)}</div>
+   <div className="mt-3 p-3 rounded-xl text-sm" style=${{background:'var(--okbg)'}}><b>Reglas de oro</b><ul className="list-disc pl-5 mt-1"><li>Mitad derecha del reloj (1–30 min): <b>past</b> + la hora que acaba de pasar.</li><li>Mitad izquierda (31–59 min): <b>to</b> + la hora siguiente. Se cuentan los minutos que faltan: 40 min → twenty to.</li><li>15 = <b>a quarter</b>, 30 = <b>half</b>; el resto en inglés: five, ten, twenty, twenty-five.</li><li>0 min = <b>o'clock</b>, sin «past» ni «to».</li></ul></div>
+  </div></div>`;}
+function App({openHelp}){
+ const [prog,setProg]=useState(load);
+ const [scr,setScr]=useState('menu');
+ const [lv,setLv]=useState(LEVELS[0]);
+ const [qs,setQs]=useState([]);
+ const [i,setI]=useState(0);
+ const [ans,setAns]=useState(null);
+ const [st,setSt]=useState({score:0,streak:0,ok:0,hints:0,best:0});
+ const [hint,setHint]=useState(false);
+ const [txt,setTxt]=useState('');
+ const [spin,setSpin]=useState(0);
+ const [fresh,setFresh]=useState(false),[freshB,setFreshB]=useState(false);
+ const inp=useRef();
+ useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(prog));}catch(e){}},[prog]);
+ const unlocked=['easy','medium','hard'].every(k=>prog.passed[k]);
+ const start=l=>{setLv(l);const ns=makeSet(l,(prog.recent||{})[l.id]);setQs(ns);setProg(p=>({...p,recent:{...(p.recent||{}),[l.id]:ns.map(x=>x.h+':'+x.m)}}));setI(0);setAns(null);setHint(false);setTxt('');setFresh(false);
+  setFreshB(false);setWrong([]);setSt({score:0,streak:0,ok:0,hints:0,best:0,lives:3});setScr('play');setSpin(s=>s+1);};
+ const boss=lv.id==='boss',q=qs[i],phase=boss||i<5?'test':'text',limit=boss?([15,15,15,12,12,12,10,10,10,8][i]||8):0;
+ const [mon,setMon]=useState({x:88,y:-54,say:false,f:null}),[ord,setOrd]=useState({i:-1,list:[]}),[tl,setTl]=useState(0),tlr=useRef(0);
+ const opts=boss&&q&&ord.i===i?ord.list:(q?q.opts:[]);
+ const [lb,setLb]=useState({st:'loading',rows:[],uid:null,write:true}),[nickIn,setNickIn]=useState(()=>load().nick||''),dbr=useRef(null),[wrong,setWrong]=useState([]);
+ useEffect(()=>{document.documentElement.style.setProperty('--acc',scr==='play'?lv.c:'');},[scr,lv]);
+ useEffect(()=>{let off=()=>{},dead=false;const tm=setTimeout(()=>setLb(l=>l.st==='loading'?{...l,st:'slow'}:l),10000);
+  (async()=>{try{
+   const [db,u]=await Promise.all([claude.use('db'),claude.use('user')]);
+   if(dead)return;
+   if(!db){clearTimeout(tm);setLb(l=>({...l,st:'off'}));return;}
+   const uid=u?await u.id():null,cw=u?await u.can('data.write'):null;
+   dbr.current={db,uid};setLb(l=>({...l,uid,write:cw!==false&&!!uid}));
+   off=db.collection('scores').orderBy('total','desc').limit(30).onSnapshot(s=>{clearTimeout(tm);setLb(l=>({...l,st:'ok',rows:s.docs.map(d=>({id:d.id,...d.data()}))}));},()=>{clearTimeout(tm);setLb(l=>({...l,st:'off'}));});
+  }catch(e){clearTimeout(tm);setLb(l=>({...l,st:'off'}));}})();
+  return()=>{dead=true;clearTimeout(tm);off();};},[]);
+ const pushScore=async(best,nick)=>{const r=dbr.current,nm=(nick||prog.nick||'').slice(0,20);if(!r||!r.uid||!nm)return;
+  const total=Object.values(best).reduce((a,b)=>a+b,0);
+  try{await r.db.doc('scores/'+r.uid).set({name:nm,total,best,upd:Date.now()});}catch(e){setLb(l=>({...l,write:false}));}};
+ useEffect(()=>{if(!boss||scr!=='play'||ans)return;let t=limit;tlr.current=t;setTl(t);
+  const id=setInterval(()=>{t-=.1;tlr.current=t;setTl(t);if(t<=0){clearInterval(id);submit(null);}},100);
+  return()=>clearInterval(id);},[i,scr,ans===null,qs]);
+ useEffect(()=>{
+  if(!boss||scr!=='play')return;
+  if(ans){setMon({x:88,y:-54,say:false,f:null});return;}
+  setOrd({i,list:q.opts});setMon({x:88,y:-54,say:false,f:null});
+  const T=[],n=i<3?1:i<7?2:3,lim=limit*1000;
+  for(let k=0;k<n;k++){const t0=lim*(.2+.22*k),a=Math.floor(Math.random()*4),b=(a+1+Math.floor(Math.random()*3))%4;
+   T.push(setTimeout(()=>setMon({x:78,y:a*54+2,say:false,f:null}),t0));
+   T.push(setTimeout(()=>{setOrd(o=>{const l=[...o.list],x=l[a];l[a]=l[b];l[b]=x;return{...o,list:l};});setMon({x:78,y:b*54+2,say:true,f:[a,b]});},t0+800));
+   T.push(setTimeout(()=>setMon({x:88,y:-54,say:false,f:null}),t0+1500));}
+  return()=>T.forEach(clearTimeout);
+ },[i,scr,ans===null,qs]);
+ const submit=given=>{
+  if(ans||!q)return;const ok=phase==='test'?given===phrase(q.h,q.m):check(given,q);
+  setAns({ok,given});if(!ok)setWrong(w=>[...w,{h:q.h,m:q.m,given}]);
+  setSt(s=>{const ns=ok?s.streak+1:0;return{...s,ok:s.ok+(ok?1:0),streak:ns,lives:ok?s.lives:s.lives-1,best:Math.max(s.best,ns),
+   score:s.score+(ok?(lv.base-(hint?2:0))+Math.min(s.streak,5)+(boss?Math.ceil(tlr.current):0):0)};});};
+ const useHint=()=>{if(!hint&&!ans){setHint(true);setSt(s=>({...s,hints:s.hints+1}));}};
+ const reroll=()=>{if(ans)return;const n=[...qs];const u=new Set(qs.map(x=>x.h+':'+x.m));n[i]=makeQ(lv,q,LEVELS.indexOf(lv)>0?q.m:undefined,u);setQs(n);setSpin(s=>s+1);};
+ const next=()=>{
+  if(i<9&&!(boss&&st.lives<=0)){setI(i+1);setAns(null);setHint(false);setTxt('');setSpin(s=>s+1);return;}
+  const pct=st.ok/10,pass=pct>=.7&&!(boss&&st.lives<=0),was=['easy','medium','hard'].every(k=>prog.passed[k]);
+  const np={...prog,passed:{...prog.passed,[lv.id]:prog.passed[lv.id]||pass},best:{...prog.best,[lv.id]:Math.max(prog.best[lv.id]||0,st.score)},medal:{...(prog.medal||{}),[lv.id]:Math.max((prog.medal||{})[lv.id]||0,MD(st.ok,st.hints,pass))}};
+  setProg(np);pushScore(np.best);setFresh(!was&&['easy','medium','hard'].every(k=>np.passed[k]));setFreshB(!prog.passed.extreme&&!!np.passed.extreme);setScr('result');};
+ useEffect(()=>{if(phase==='text'&&!ans&&inp.current)inp.current.focus();},[i,ans,scr]);
+ const Header=html`<div className="text-center mb-4"><h1 className="text-3xl font-extrabold">Tick Tock English</h1><p className="mut">Aprende a decir la hora en inglés</p><p className="text-sm font-bold" style=${{color:'#9ca3af',letterSpacing:'.04em'}}>Created by Eduardo Montes</p></div>`;
+
+ if(scr==='rank'){const mine=Object.values(prog.best).reduce((a,b)=>a+b,0),msg={off:'El ranking global no está disponible en esta sesión. Ábrelo con tu cuenta para participar.',loading:'Cargando ranking…',slow:'No se puede conectar todavía; los datos pueden estar desactualizados.'}[lb.st];
+  return html`<main className="max-w-xl mx-auto p-4">${Header}
+  <div className="card p-4"><h2 className="text-xl font-extrabold">🏆 Ranking global</h2>
+   <p className="mut text-sm mb-3">Suma de tus mejores puntuaciones de cada nivel. Tu total: <b>${mine}</b></p>
+   <div className="flex gap-2 mb-3"><input value=${nickIn} onChange=${e=>setNickIn(e.target.value)} maxLength=${20} placeholder="Tu nombre en el ranking" className="flex-1 rounded-xl px-3 py-2 border-2" style=${{background:'var(--card)',borderColor:'var(--line)',color:'var(--fg)'}}/><button className="btn pri" disabled=${!nickIn.trim()} onClick=${()=>{const n=nickIn.trim().slice(0,20);setProg(p=>({...p,nick:n}));pushScore(prog.best,n);}}>Guardar</button></div>
+   ${msg&&html`<p className="mb-3">${msg}</p>`}
+   ${lb.st==='ok'&&!lb.write&&html`<p className="mb-3 text-sm" style=${{color:'var(--ko)'}}>Puedes ver el ranking, pero con tu tipo de acceso tu puntuación no se guarda. Pide permiso de Colaborador.</p>`}
+   ${lb.st==='ok'&&lb.rows.length===0&&html`<p className="mut">Aún no hay puntuaciones. ¡Sé el primero!</p>`}
+   <ol className="grid gap-1">${lb.rows.map((r,k)=>html`<li key=${r.id} className="flex items-center gap-3 px-3 py-2 rounded-xl" style=${{background:r.id===lb.uid?'var(--okbg)':'transparent',border:'1px solid var(--line)'}}><span className="w-7 font-extrabold">${k<3?['🥇','🥈','🥉'][k]:k+1}</span><span className="flex-1 font-bold truncate">${r.name||'Anónimo'}${r.id===lb.uid?' (tú)':''}</span><span className="font-extrabold">${r.total}</span></li>`)}</ol>
+   <button className="btn mt-4" onClick=${()=>setScr('menu')}>← Menú</button></div></main>`;}
+ if(scr==='menu')return html`<main className="max-w-xl mx-auto p-4">${Header}
+  <div className="grid gap-3">${LEVELS.map(l=>{const lock=(l.id==='extreme'&&!unlocked)||(l.id==='boss'&&!prog.passed.extreme);
+   return html`<button key=${l.id} disabled=${lock} onClick=${()=>start(l)} className="card p-4 text-left flex items-center gap-4 disabled:opacity-70" style=${{cursor:lock?'not-allowed':'pointer',borderLeft:'8px solid '+(lock?'var(--line)':l.c)}}>
+    <span className="text-3xl" aria-hidden="true">${lock?'🔒':l.id==='boss'?'👹':l.id==='extreme'?'⚡':['🌱','🌿','🌳'][LEVELS.indexOf(l)]}</span>
+    <span className="flex-1"><span className="block text-lg font-extrabold">${lock?'???':l.name+' · '+l.en+'  '+'★'.repeat(LEVELS.indexOf(l)+1)+'☆'.repeat(4-LEVELS.indexOf(l))}</span>
+    <span className="mut text-sm">${lock?(l.id==='boss'?'Supera Extreme para descubrir qué se esconde aquí':'Supera los tres primeros niveles para descubrirlo'):l.d}</span></span>
+    <span className="text-right text-sm">${prog.passed[l.id]?html`<span style=${{color:'var(--ok)'}} className="font-bold">✓ Superado ${['','🥉','🥈','🥇'][(prog.medal||{})[l.id]||0]}</span>`:''}${prog.best[l.id]?html`<span className="block mut">Récord: ${prog.best[l.id]}</span>`:''}</span></button>`;})}</div>
+  <button className="btn w-full mt-4" onClick=${openHelp}>📖 Repaso de horas</button>
+  <p className="mut text-sm text-center mt-4">10 preguntas por nivel: 5 de tipo test y 5 de respuesta escrita. Supera cada nivel con un 70 % de aciertos.</p>
+  <div className="text-center mt-6"><button className="text-xs mut underline" onClick=${()=>{if(confirm('¿Reiniciar todo el progreso?'))setProg({passed:{},best:{}});}}>Reiniciar progreso</button></div></main>`;
+
+ if(scr==='result'){const pct=st.ok*10,pass=pct>=70&&!(lv.id==='boss'&&st.lives<=0),ni=LEVELS.indexOf(lv)+1,nl=LEVELS[ni],can=nl&&(nl.id!=='extreme'||unlocked)&&(nl.id!=='boss'||prog.passed.extreme);
+  return html`<main className="max-w-xl mx-auto p-4">${(fresh||freshB)&&html`<${Confetti}/>`}${Header}
+  <div className="card p-6 text-center">
+   <div className="text-5xl mb-2">${pass?'🎉':'💪'}</div>
+   <h2 className="text-2xl font-extrabold">${pass?'¡Nivel superado!':'Casi lo tienes'}</h2>
+   <p className="mut mb-4">${lv.name} · ${lv.en}</p>
+   <${Medal} ok=${st.ok} h=${st.hints} pass=${pass}/>
+   <div className="grid grid-cols-2 gap-3 text-left mb-4">
+    <div className="card p-3"><div className="mut text-sm">Aciertos</div><div className="text-2xl font-extrabold">${st.ok}/10 (${pct}%)</div></div>
+    <div className="card p-3"><div className="mut text-sm">Puntuación</div><div className="text-2xl font-extrabold">${st.score}</div></div>
+    <div className="card p-3"><div className="mut text-sm">Mejor racha</div><div className="text-2xl font-extrabold">🔥 ${st.best}</div></div>
+    <div className="card p-3"><div className="mut text-sm">Pistas usadas</div><div className="text-2xl font-extrabold">${st.hints}</div></div></div>
+   ${wrong.length>0&&html`<div className="text-left mb-4"><h3 className="font-extrabold mb-2">📝 Repaso de tus errores</h3><div className="grid gap-2">${wrong.map((w,k)=>html`<div key=${k} className="flex items-center gap-3 p-2 rounded-xl" style=${{border:'1px solid var(--line)'}}><${Mini} h=${w.h} m=${w.m}/><div className="text-sm"><div className="font-extrabold">It's ${phrase(w.h,w.m)} <span className="mut font-normal">(${w.h}:${pad(w.m)})</span></div><div style=${{color:'var(--ko)'}}>${w.given===null?'Se acabó el tiempo':'Tu respuesta: '+w.given}</div><div className="mut">${tip(w.m)}</div></div></div>`)}</div></div>`}
+   ${st.hints>0&&html`<p className="mut text-sm mb-3">Cada pista resta 2 puntos a esa pregunta y el bono de racha no cambia.</p>`}
+   ${!pass&&html`<p className="mb-3">${lv.id==='boss'?'En el Boss tienes que acabar con vidas y con al menos un 70 % de aciertos.':'Necesitas al menos un 70 % de aciertos para superarlo.'}</p>`}
+   ${fresh&&html`<div className="p-4 rounded-xl mb-4 font-bold" style=${{background:'var(--okbg)',color:'var(--ok)'}}>⚡ ¡Has desbloqueado el nivel Extreme! Horas cada 5 minutos te esperan.</div>`}
+   ${freshB&&html`<div className="p-4 rounded-xl mb-4 font-bold" style=${{background:'var(--kobg)',color:'var(--ko)'}}>👹 ¡Un monstruo ha aparecido! El nivel Boss está desbloqueado.</div>`}
+   <div className="flex flex-wrap gap-2 justify-center">
+    <button className="btn" onClick=${()=>start(lv)}>Repetir nivel</button>
+    ${pass&&can&&html`<button className="btn pri" onClick=${()=>start(nl)}>Siguiente nivel</button>`}
+    ${fresh&&html`<button className="btn pri" onClick=${()=>start(LEVELS[3])}>Probar Extreme</button>`}
+    <button className="btn" onClick=${()=>setScr('menu')}>Menú</button></div></div></main>`;}
+
+ const right=phrase(q.h,q.m),dig=`${q.h}:${pad(q.m)}`;
+ return html`<main className="max-w-xl mx-auto p-4">
+  <div className="flex items-center justify-between mb-3">
+   <div className="flex gap-2"><button className="btn" onClick=${()=>setScr('menu')} aria-label="Volver al menú">← Menú</button>${!boss&&html`<button className="btn" onClick=${openHelp}>📖 Repaso</button>`}</div>
+   <div className="text-right"><div className="font-extrabold px-3 py-1 rounded-full text-white inline-block" style=${{background:lv.c}}>${lv.name} · ${lv.en}</div><div className="mut text-sm">Pregunta ${i+1} de 10 · ${phase==='test'?(boss?'Boss · tipo test':'Tipo test'):'Respuesta escrita'}</div></div></div>
+  <div className="h-2 rounded-full mb-3" style=${{background:'var(--line)'}}><div className="h-2 rounded-full" style=${{width:(i+(ans?1:0))*10+'%',background:'var(--acc)',transition:'width .4s'}}/></div>
+  ${boss&&html`<div className="flex items-center gap-3 mb-3"><div className="text-xl" aria-label="Vidas">${'❤️'.repeat(Math.max(0,st.lives))+'🖤'.repeat(3-Math.max(0,st.lives))}</div><div className="flex-1 h-4 rounded-full overflow-hidden" style=${{background:'var(--line)'}}><div className="h-4 rounded-full" style=${{width:Math.max(0,tl/limit*100)+'%',background:tl<4?'var(--ko)':'var(--acc)',transition:'width .1s linear'}}/></div><div className="font-extrabold w-10 text-right">${Math.max(0,Math.ceil(tl))}s</div></div>`}
+  <div className="grid grid-cols-3 gap-2 text-center mb-4">
+   <div className="card p-2"><div className="mut text-xs">Puntos</div><div className="font-extrabold text-xl">${st.score}</div></div>
+   <div className="card p-2"><div className="mut text-xs">Aciertos</div><div className="font-extrabold text-xl">${st.ok}</div></div>
+   <div className="card p-2"><div className="mut text-xs">Racha</div><div className="font-extrabold text-xl">🔥 ${st.streak}</div></div></div>
+  <div className="card p-4">
+   <div className="text-center mb-2"><span className="px-3 py-1 rounded-full text-white text-xs font-extrabold tracking-wide" style=${{background:lv.c}}>NIVEL ${lv.name.toUpperCase()}</span></div><${Clock} q=${q} spin=${spin}/>
+   <p className="text-center font-bold mt-3">${phase==='test'?'¿Qué hora marca el reloj?':'Escribe la hora en inglés'}</p>
+   <div className="flex gap-2 justify-center my-3">
+    <button className="btn" onClick=${useHint} disabled=${!!ans||hint||boss}>💡 Pista (24h)</button>
+    <button className="btn" onClick=${reroll} disabled=${!!ans||boss}>🎲 Random / Girar</button></div>
+   ${hint&&html`<div className="text-center mb-3 font-extrabold text-2xl" style=${{color:'var(--acc)'}}>${pad(h24(q))}:${pad(q.m)} <span className="text-base mut">${q.pm?'PM (tarde/noche)':'AM (mañana)'}</span></div>`}
+   ${phase==='test'?html`<div className="grid gap-2 relative">${boss&&html`<div className="mon absolute text-4xl pointer-events-none select-none" style=${{left:mon.x+'%',top:mon.y,zIndex:5}} aria-hidden="true">${mon.say?html`<span className="absolute text-xs font-bold px-2 py-1 rounded-lg whitespace-nowrap" style=${{top:'-1.2rem',right:'2.5rem',background:'var(--card)',border:'1px solid var(--line)'}}>¡Cambiazo!</span>`:''}👹</div>`}${opts.map((o,k)=>{
+     let c='opt'+(mon.f&&mon.f.includes(k)?' flash':'');if(ans){if(o===right)c+=' ok';else if(o===ans.given)c+=' ko';}
+     return html`<button key=${o} className=${c} disabled=${!!ans} onClick=${()=>submit(o)}>${"It's "+o}</button>`;})}</div>`
+    :html`<div className="flex gap-2"><input ref=${inp} value=${txt} disabled=${!!ans} onChange=${e=>setTxt(e.target.value)}
+      onKeyDown=${e=>{if(e.key==='Enter'&&txt.trim())submit(txt);}} placeholder="Ej.: half past three" autoComplete="off" autoCapitalize="off"
+      className=${'flex-1 rounded-xl px-3 py-2 border-2 '+(ans?(ans.ok?'ok':'ko'):'')} style=${{background:'var(--card)',borderColor:ans?undefined:'var(--line)',color:'var(--fg)'}}/>
+      <button className="btn pri" disabled=${!!ans||!txt.trim()} onClick=${()=>submit(txt)}>Comprobar</button></div>`}
+   ${ans&&html`<div className=${'mt-4 p-3 rounded-xl border-2 '+(ans.ok?'ok':'ko')} role="status">
+     <div className="font-extrabold">${ans.ok?'¡Correcto! 🎉':ans.given===null?'¡Se acabó el tiempo! ⏰':'Casi… ¡a la próxima!'}</div>
+     <div>Respuesta: <b>It's ${right}</b></div>
+     <div className="mut text-sm">En digital: ${dig} (12h) · ${pad(h24(q))}:${pad(q.m)} (24h)</div>
+     <button className="btn pri mt-3" onClick=${next} autoFocus>${i<9&&!(boss&&st.lives<=0)?'Siguiente pregunta':'Ver resultados'}</button></div>`}
+  </div></main>`;}
+function Root(){const [hp,setHp]=useState(false);return html`<div><${App} openHelp=${()=>setHp(true)}/>${hp&&html`<${Guide} onClose=${()=>setHp(false)}/>`}</div>`;}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${Root}/>`);
+</script>
+</body>
+</html>
